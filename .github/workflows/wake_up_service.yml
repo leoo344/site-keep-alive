@@ -1,0 +1,22 @@
+name: Keep Alive Service
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Every 10 minutes
+  workflow_dispatch:      # Manual trigger button
+
+jobs:
+  ping_services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Random Delay
+        run: sleep $(( (RANDOM % 300) + 1 )) # Random delay (1-5 mins)
+
+      - name: Ping Render API
+        run: |
+          curl -I -sL https://revivepass.onrender.com
+          echo "Render API is awake."
+
+      - name: Ping Vercel Frontend
+        run: |
+          curl -I -sL https://revivepass.vercel.app/
+          echo "Vercel Frontend is awake."
