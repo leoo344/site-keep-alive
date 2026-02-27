@@ -1,26 +1,66 @@
-name: High Frequency Smart Wake
+name: Browser Automation Wakeup
 on:
   schedule:
-    - cron: '*/7 * * * *' # Triggers every 7 minutes to beat the 15-min sleep limit
-  workflow_dispatch:      # Allows manual trigger for testing
+    - cron: '*/7 * * * *' # Every 7 minutes
+  workflow_dispatch:      # Manual trigger
 
 jobs:
-  ping_services:
+  fill_form_and_click:
     runs-on: ubuntu-latest
     steps:
-      - name: Short Random Delay
-        run: sleep $(( (RANDOM % 30) + 1 )) # Waits 1-30 seconds for natural traffic look
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Wake Up Render API (Deep Scan)
-        run: |
-          # Pings the API with a unique timestamp to force the server to process it
-          curl -I -sL "https://revivepass.onrender.com/?refresh=$(date +%s)"
-          # Specifically targets the API route to wake up serverless functions
-          curl -I -sL "https://revivepass.onrender.com/api" || echo "API endpoint poked"
-          echo "Render API is fully awake."
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Wake Up Vercel Frontend (Interactive Mode)
+      - name: Install Playwright
         run: |
-          # Simulates a fresh user action using a unique query parameter
-          curl -I -sL "https://revivepass.vercel.app/?user_action=simulated_click&t=$(date +%s)"
-          echo "Vercel Frontend is fully awake."
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      - name: Open Site and Fill Migration Form
+        run: |
+          node -e "
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            
+            console.log('Navigating to RevivePass...');
+            await page.goto('https://revivepass.vercel.app/', { waitUntil: 'networkidle' });
+            
+            await page.waitForTimeout(4000);
+
+            try {
+              // 1. Click main button
+              await page.getByText('Create Migration').first().click();
+              console.log('Main button clicked.');
+              await page.waitForTimeout(2000);
+
+              // 2. Fill Migration title with exactly 15 characters
+              // 'MigrationTitle1' is 15 chars
+              await page.getByPlaceholder('Migration title').fill('MigrationTitle1');
+              console.log('Filled Title with 15 characters.');
+
+              // 3. Fill Description with exactly 15 characters
+              // 'DescriptionTxt1' is 15 chars
+              await page.getByPlaceholder('Description').fill('DescriptionTxt1');
+              console.log('Filled Description with 15 characters.');
+
+              await page.waitForTimeout(1000);
+
+              // 4. Click the final Create Migration button
+              // This targets the button inside the modal/form
+              await page.locator('button:has-text(\"Create Migration\")').last().click();
+              console.log('Form submitted successfully!');
+
+            } catch (e) {
+              console.log('Form interaction failed, but page was touched.');
+            }
+
+            await browser.close();
+          })();
+          "
