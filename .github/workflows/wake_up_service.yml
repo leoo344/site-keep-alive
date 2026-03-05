@@ -16,51 +16,54 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Playwright
+      - name: Install Dependencies
         run: |
           npm install playwright
-          npx playwright install chromium --with-deps
+          npx playwright install-deps chromium
+          npx playwright install chromium
 
       - name: Open Site and Fill Migration Form
         run: |
           node -e "
           const { chromium } = require('playwright');
           (async () => {
-            const browser = await chromium.launch();
-            const page = await browser.newPage();
+            const browser = await chromium.launch({ headless: true });
+            const context = await browser.newContext();
+            const page = await context.newPage();
             
-            console.log('Navigating to RevivePass...');
-            await page.goto('https://revivepass.vercel.app/', { waitUntil: 'networkidle' });
-            
-            await page.waitForTimeout(4000);
-
             try {
-              // 1. Click main button
-              await page.getByText('Create Migration').first().click();
+              console.log('Navigating to RevivePass...');
+              await page.goto('https://revivepass.vercel.app/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+              
+              // Wait for the main button and click
+              const mainBtn = page.getByText('Create Migration').first();
+              await mainBtn.waitFor({ state: 'visible', timeout: 15000 });
+              await mainBtn.click();
               console.log('Main button clicked.');
-              await page.waitForTimeout(2000);
 
-              // 2. Fill Migration title with exactly 15 characters
-              // 'MigrationTitle1' is 15 chars
-              await page.getByPlaceholder('Migration title').fill('MigrationTitle1');
-              console.log('Filled Title with 15 characters.');
+              // Fill Migration title with 15 characters
+              const titleInput = page.getByPlaceholder('Migration title');
+              await titleInput.waitFor({ state: 'visible' });
+              await titleInput.fill('ReviveProject15'); // 15 chars
+              console.log('Filled Title.');
 
-              // 3. Fill Description with exactly 15 characters
-              // 'DescriptionTxt1' is 15 chars
-              await page.getByPlaceholder('Description').fill('DescriptionTxt1');
-              console.log('Filled Description with 15 characters.');
+              // Fill Description with 15 characters
+              const descInput = page.getByPlaceholder('Description');
+              await descInput.waitFor({ state: 'visible' });
+              await descInput.fill('DescDescription'); // 15 chars
+              console.log('Filled Description.');
 
-              await page.waitForTimeout(1000);
-
-              // 4. Click the final Create Migration button
-              // This targets the button inside the modal/form
-              await page.locator('button:has-text(\"Create Migration\")').last().click();
+              // Click the final Create Migration button inside the form
+              const submitBtn = page.locator('button:has-text(\"Create Migration\")').last();
+              await submitBtn.click();
               console.log('Form submitted successfully!');
-
+              
+              await page.waitForTimeout(2000);
             } catch (e) {
-              console.log('Form interaction failed, but page was touched.');
+              console.error('Error during execution:', e.message);
+              process.exit(1);
+            } finally {
+              await browser.close();
             }
-
-            await browser.close();
           })();
           "
